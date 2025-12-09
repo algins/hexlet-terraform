@@ -13,12 +13,50 @@ provider "digitalocean" {
   token = var.do_token
 }
 
+resource "digitalocean_database_cluster" "db" {
+  name = "db"
+  engine = "pg"
+  version = "18"
+  region = "ams3"
+  size = "db-s-1vcpu-1gb"
+  node_count = 1
+  private_network_uuid = "18dc1289-502f-45bd-87bf-a0d807dd6ffc"
+}
+
+resource "digitalocean_droplet" "web1" {
+  name = "web1"
+  region = "ams3"
+  size = "s-1vcpu-1gb"
+  image = "ubuntu-24-04-x64"
+  vpc_uuid = "18dc1289-502f-45bd-87bf-a0d807dd6ffc"
+  depends_on = [digitalocean_database_cluster.db]
+}
+
+resource "digitalocean_droplet" "web2" {
+  name = "web2"
+  region = "ams3"
+  size = "s-1vcpu-1gb"
+  image = "ubuntu-24-04-x64"
+  vpc_uuid = "18dc1289-502f-45bd-87bf-a0d807dd6ffc"
+  depends_on = [digitalocean_database_cluster.db]
+}
+
 resource "digitalocean_loadbalancer" "lb" {
   name = "lb"
   region = "ams3"
-
   redirect_http_to_https = true
   enable_backend_keepalive = true
+  vpc_uuid = "18dc1289-502f-45bd-87bf-a0d807dd6ffc"
+
+  droplet_ids = [
+    digitalocean_droplet.web1.id,
+    digitalocean_droplet.web2.id
+  ]
+
+  depends_on = [
+    digitalocean_droplet.web1,
+    digitalocean_droplet.web2
+  ]
 
   forwarding_rule {
     entry_protocol = "http"
@@ -44,23 +82,4 @@ resource "digitalocean_loadbalancer" "lb" {
     healthy_threshold = 5
     unhealthy_threshold = 3
   }
-
-  droplet_ids = [
-    digitalocean_droplet.web1.id,
-    digitalocean_droplet.web2.id
-  ]
-}
-
-resource "digitalocean_droplet" "web1" {
-  name = "web1"
-  region = "ams3"
-  size = "s-1vcpu-1gb"
-  image = "ubuntu-24-04-x64"
-}
-
-resource "digitalocean_droplet" "web2" {
-  name = "web2"
-  region = "ams3"
-  size = "s-1vcpu-1gb"
-  image = "ubuntu-24-04-x64"
 }
